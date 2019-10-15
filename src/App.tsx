@@ -1,26 +1,26 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React from "react";
+import styled from "styled-components";
+import { observer, inject } from "mobx-react";
+import { MetaStore } from "./stores/meta";
+import StoreSelect from "./Components/StoreSelect";
+import MediaRenderer from "./Components/MediaRenderer";
 
-const App: React.FC = () => {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
-}
+const Base = styled.main`
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+`;
 
-export default App;
+const App = (props: { metaStore?: MetaStore }) => {
+    return (
+        <Base>
+            {props.metaStore!.selectedStore == null ? (
+                <StoreSelect />
+            ) : (
+                <MediaRenderer />
+            )}
+        </Base>
+    );
+};
+
+export default inject("metaStore")(observer(App));
