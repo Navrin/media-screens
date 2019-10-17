@@ -1,7 +1,8 @@
 import { API_URL } from "../client";
 import { observable } from "mobx";
 import * as df from "date-fns";
-import { promises as pfs } from "fs";
+import { promises as pfs, readSync, readFileSync } from "fs";
+import { join } from "path";
 const { app } = require("electron").remote;
 
 interface Manifest {
@@ -20,6 +21,8 @@ export class MetaStore {
     @observable
     selectedStore: string | null = localStorage.getItem("store");
 
+    serverDown = false;
+
     @observable
     rotation: string[] = [];
 
@@ -37,8 +40,8 @@ export class MetaStore {
         this.bootStrap();
     }
 
-    async bootStrap() {
-        if (navigator.onLine) {
+    bootStrap = async (): Promise<void> => {
+        if (navigator.onLine && !this.serverDown) {
             try {
                 const manifest = await fetch(`${API_URL}/manifest`).then(r =>
                     r.json(),
@@ -57,6 +60,11 @@ export class MetaStore {
                     this.bootStrap();
                 }, 100000);
             } catch (e) {
+                if (e.message.includes("Failed to fetch")) {
+                    this.serverDown = true;
+                    return this.bootStrap();
+                }
+
                 console.error(e);
 
                 setTimeout(() => {
@@ -67,13 +75,17 @@ export class MetaStore {
             // offline mode, just play cached images
             const files = await pfs.readdir(this.writePath);
 
-            this.rotation = files;
+            this.rotation = files
+                .map(f => join(this.writePath, "/", f))
+                .map(f => {
+                    return "file://" + f;
+                });
 
             this.intervalHandler && clearInterval(this.intervalHandler);
             // retry internet connection
             setTimeout(this.bootStrap, 20000);
         }
-    }
+    };
 
     workLoop = async () => {
         console.count("performing workloop");
@@ -97,14 +109,13 @@ export class MetaStore {
                 }
             }
 
+            const fileUrl = `${API_URL}/media/${file.file}`;
             // file should be valid, check if already in rotation
-            const exists = this.rotation.includes(file.file);
+            const exists = this.rotation.includes(fileUrl);
 
             if (exists) {
                 continue;
             }
-
-            const fileUrl = `${API_URL}/media/${file.file}`;
 
             // file needs to be added to rotation
             this.rotation.push(fileUrl);
@@ -112,6 +123,8 @@ export class MetaStore {
             if (!file.file.endsWith("mp4")) {
                 const img = new Image();
                 img.src = fileUrl;
+            } else {
+                fetch(fileUrl, { cache: "force-cache" });
             }
 
             // cache file if general rotation so it can work offline
