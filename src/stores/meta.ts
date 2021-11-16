@@ -30,6 +30,8 @@ export class MetaStore {
 
     serverDown = false;
 
+    serverDown = false;
+
     @observable
     rotation: string[] = [];
 

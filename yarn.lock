@@ -10864,6 +10864,13 @@ screen@^0.2.10:
   dependencies:
     xtend "~1.0.3"
 
+screen@^0.2.10:
+  version "0.2.10"
+  resolved "https://registry.yarnpkg.com/screen/-/screen-0.2.10.tgz#c47eab3d48a7bd097caa6a0f4e66d2d6cd5a461e"
+  integrity sha1-xH6rPUinvQl8qmoPTmbS1s1aRh4=
+  dependencies:
+    xtend "~1.0.3"
+
 select-hose@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/select-hose/-/select-hose-2.0.0.tgz#625d8658f865af43ec962bfc376a37359a4994ca"

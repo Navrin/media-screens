@@ -27,6 +27,16 @@ const Container = styled.div`
     height: 100vh;
 `;
 
+const FadeIn = keyframes`
+    from { opacity: 0;     transform: translate3d(0,0,0); }
+    to   { opacity: 1; }
+`;
+
+const FadeOut = keyframes`
+    from { opacity: 1; }
+    to { opacity: 0;     transform: translate3d(0,0,0); }
+`;
+
 const CurrentImage = styled.img`
     display: flex;
     justify-content: center;
@@ -67,6 +77,7 @@ const VideoAbsoluteContainer = styled.div`
     display: flex;
     width: 100vw;
     height: 100vh;
+    z-index: 100000;
 `;
 
 const VideoPreloadOverlay = styled(CurrentImage)<{ visible: boolean }>`
