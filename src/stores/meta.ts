@@ -1,8 +1,11 @@
 import { API_URL } from "../client";
-import { observable } from "mobx";
+import { makeObservable, observable } from "mobx";
 import * as df from "date-fns";
-import { promises as pfs } from "fs";
-const { app } = require("electron").remote;
+import { promises as pfs, readSync, readFileSync } from "fs";
+import { join } from "path";
+import shuffle from "lodash/shuffle";
+import { ipcRenderer } from "electron";
+// const { app } = require("@electron/remote/main");
 
 interface Manifest {
     stores: string[];
@@ -12,35 +15,72 @@ interface Manifest {
         file: string;
     }[];
 }
+
 export class MetaStore {
+    static screenId: string = `screen-${
+        (window.screen as any as { availLeft: number }).availLeft
+    }`;
+
     @observable
     stores: string[] | null = null;
     @observable
     manifest: Manifest | null = null;
     @observable
-    selectedStore: string | null = localStorage.getItem("store");
+    selectedStore: string | null = localStorage.getItem(MetaStore.screenId);
+
+    serverDown = false;
 
     @observable
     rotation: string[] = [];
 
-    intervalHandler: number | null = null;
+    intervalHandler: NodeJS.Timer | null = null;
+    next: Generator<string, void, unknown>;
 
     setSelectedStore = (s: string) => {
         this.selectedStore = s;
-        localStorage.setItem("store", s);
+        localStorage.setItem(MetaStore.screenId, s);
     };
 
-    private readonly writePath =
-        app.getPath("appData") + "/media-desktop/media/files";
+    async getWritePath() {
+        const appData = await ipcRenderer.invoke("get-appdata");
+        const out = `${appData}/media-desktop/media/files`;
+        return out;
+    }
 
     constructor() {
+        makeObservable(this);
+
+        let self = this;
+
+        const next = function* () {
+            let cur = 0;
+
+            while (true) {
+                let now = cur++;
+                // console.log(now);
+
+                if (now >= self.rotation.length) {
+                    cur = 0;
+                    now = 0;
+                }
+
+                if (self.rotation.length <= 0) {
+                    return undefined;
+                }
+
+                yield self.rotation[now];
+            }
+        };
+
+        this.next = next();
+
         this.bootStrap();
     }
 
-    async bootStrap() {
-        if (navigator.onLine) {
+    bootStrap = async (): Promise<void> => {
+        if (navigator.onLine && !this.serverDown) {
             try {
-                const manifest = await fetch(`${API_URL}/manifest`).then(r =>
+                const manifest = await fetch(`${API_URL}/manifest`).then((r) =>
                     r.json(),
                 );
 
@@ -57,6 +97,14 @@ export class MetaStore {
                     this.bootStrap();
                 }, 100000);
             } catch (e) {
+                if (
+                    e instanceof Error &&
+                    e.message.includes("Failed to fetch")
+                ) {
+                    this.serverDown = true;
+                    return this.bootStrap();
+                }
+
                 console.error(e);
 
                 setTimeout(() => {
@@ -65,18 +113,25 @@ export class MetaStore {
             }
         } else {
             // offline mode, just play cached images
-            const files = await pfs.readdir(this.writePath);
+            const write = await this.getWritePath();
+            const files = await pfs.readdir(write);
 
-            this.rotation = files;
+            this.rotation = files
+                .map((f) => join(write, "/", f))
+                .map((f) => {
+                    return "file://" + f;
+                });
 
             this.intervalHandler && clearInterval(this.intervalHandler);
             // retry internet connection
+            // reset server status so it doesn't get permastuck in offline mode
+            this.serverDown = false;
             setTimeout(this.bootStrap, 20000);
         }
-    }
+    };
 
     workLoop = async () => {
-        console.count("performing workloop");
+        // console.count("performing workloop");
         if (this.manifest == null) {
             return;
         }
@@ -97,25 +152,27 @@ export class MetaStore {
                 }
             }
 
+            const fileUrl = `${API_URL}/media/${file.file}`;
             // file should be valid, check if already in rotation
-            const exists = this.rotation.includes(file.file);
+            const exists = this.rotation.includes(fileUrl);
 
             if (exists) {
                 continue;
             }
 
-            const fileUrl = `${API_URL}/media/${file.file}`;
-
             // file needs to be added to rotation
-            this.rotation.push(fileUrl);
 
-            if (!file.file.endsWith("mp4")) {
-                const img = new Image();
-                img.src = fileUrl;
-            }
+            this.rotation = shuffle([...this.rotation, fileUrl]);
+
+            // if (!file.file.endsWith("mp4")) {
+            //     const img = new Image();
+            //     img.src = fileUrl;
+            // } else {
+            fetch(fileUrl, { cache: "force-cache" });
+            // }
 
             // cache file if general rotation so it can work offline
-            const writePath = this.writePath;
+            const writePath = await this.getWritePath();
             await pfs.mkdir(writePath, { recursive: true });
             const files = await pfs.readdir(writePath);
 
@@ -124,10 +181,10 @@ export class MetaStore {
                 continue;
             }
 
-            const blob = await fetch(fileUrl).then(r => r.blob());
+            const blob = await fetch(fileUrl).then((r) => r.blob());
 
             let reader = new FileReader();
-            reader.onload = function() {
+            reader.onload = function () {
                 if (reader.readyState === 2) {
                     var buffer = new Buffer(reader.result as ArrayBuffer);
                     pfs.writeFile(`${writePath}/${file.file}`, buffer);
@@ -160,9 +217,9 @@ function processTimeIsValid([start, end]: string[]) {
 
     const now = new Date();
 
-    const range = [start, end].map(r => df.parse(r, "hh:mm aa", now));
+    const range = [start, end].map((r) => df.parse(r, "hh:mm aa", now));
 
-    return dateBetween(now, (range as unknown) as [Date, Date]);
+    return dateBetween(now, range as unknown as [Date, Date]);
 }
 
 var isoValidDate = new RegExp(

@@ -13,6 +13,7 @@ const SelectBox = styled.div`
     background: rgba(66, 66, 66);
     color: white;
     flex-direction: column;
+    cursor: pointer;
 `;
 
 const Button = styled.button`
@@ -44,7 +45,7 @@ const StoreSelect = (props: { metaStore?: MetaStore }) => {
         <SelectBox>
             <h3>Select store.</h3>
             <select value={store} onChange={handleChange}>
-                {props.metaStore!.stores.map(s => (
+                {props.metaStore!.stores.map((s) => (
                     <option key={s} value={s}>
                         {s}
                     </option>
