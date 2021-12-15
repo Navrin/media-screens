@@ -82,10 +82,11 @@ function createWindow() {
 
     allWindows.forEach(r => {
         // require("@electron/remote/main").enable(r.webContents)
-        r.maximize();
-        r.show();
         r.loadURL(startUrl);
-        r.
+        r.on("ready-to-show", () => {
+            r.maximize();
+            r.show();
+        })
         r.on("closed", function() {
             // Dereference the window object, usually you would store windows
             // in an array if your app supports multi windows, this is the time

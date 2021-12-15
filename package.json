@@ -1,6 +1,6 @@
 {
     "name": "media-desktop",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "private": true,
     "homepage": "./",
     "main": "./src/electron-starter.js",
@@ -85,6 +85,8 @@
         ]
     },
     "devDependencies": {
+        "@babel/helper-define-map": "^7.16.0",
+        "@babel/helper-regex": "^7.10.5",
         "cross-env": "^7.0.3",
         "electron": "^15.3.1",
         "electron-builder": "^22.13.1",

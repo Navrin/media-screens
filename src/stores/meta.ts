@@ -16,6 +16,7 @@ interface Manifest {
     }[];
 }
 
+const manifestCache = "manifestCache";
 export class MetaStore {
     static screenId: string = `screen-${
         (window.screen as any as { availLeft: number }).availLeft
@@ -86,6 +87,7 @@ export class MetaStore {
 
                 this.stores = manifest.stores;
                 this.manifest = manifest;
+                localStorage.setItem(manifestCache, JSON.stringify(manifest));
 
                 this.workLoop();
                 this.intervalHandler = setInterval(this.workLoop, 20000);
@@ -112,15 +114,36 @@ export class MetaStore {
                 }, 15000);
             }
         } else {
-            // offline mode, just play cached images
+            // offline mode
+            // use last known manifest to show correct images.
+
+            this.manifest = JSON.parse(
+                localStorage.getItem(manifestCache) || "{}",
+            );
+
+            const allowedImages = this.manifest!.files.flatMap((m) =>
+                m.stores.includes(this.selectedStore || "") ||
+                m.stores.length <= 0
+                    ? [m.file]
+                    : [],
+            );
+
+            // find cached files that are in allowedImages set
+            // cached images ∩ allowed images
             const write = await this.getWritePath();
-            const files = await pfs.readdir(write);
+            const cachedFiles = await pfs.readdir(write);
+
+            const files = allowedImages.filter((a) =>
+                cachedFiles.some((f) => f.includes(a)),
+            );
 
             this.rotation = files
                 .map((f) => join(write, "/", f))
                 .map((f) => {
                     return "file://" + f;
                 });
+
+            console.debug("rotation is set to ", this.rotation);
 
             this.intervalHandler && clearInterval(this.intervalHandler);
             // retry internet connection
