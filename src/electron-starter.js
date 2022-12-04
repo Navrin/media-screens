@@ -30,13 +30,13 @@ if (!isDev) {
         });
 }
 
+
+
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-let mainWindow;
-let secondWindow;
 let allWindows = [];
 
-function createWindow() {
+function createWindows() {
     if (isDev) {
         const {
             default: installExtension,
@@ -46,12 +46,15 @@ function createWindow() {
             .then(console.log)
             .catch(console.error);
     }
+
+    
     autoUpdater.checkForUpdatesAndNotify();
     setInterval(() => {
         autoUpdater.checkForUpdatesAndNotify();
     }, 200000);
-    var electronScreen = electron.screen;
-    var displays = electronScreen.getAllDisplays();
+
+    let electronScreen = electron.screen;
+    let displays = electronScreen.getAllDisplays();
 
     // Create the browser window.
     allWindows = displays.map(
@@ -129,7 +132,7 @@ ipcMain.handle('get-screen-id', (event, bounds) => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on("ready", createWindow);
+app.on("ready", bootstrapWindowCreation);
 
 // Quit when all windows are closed.
 app.on("window-all-closed", function() {
@@ -144,18 +147,25 @@ app.on("update-downloaded", () => {
     autoUpdater.quitAndInstall();
 });
 
-app.on("activate", function() {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (mainWindow === null) {
-        createWindow();
-    }
-});
+app.on("activate", bootstrapWindowCreation);
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
 
 process.on('uncaughtException', function (err) {
     console.log(err);
-  })
+});
+
+function bootstrapWindowCreation() {
+    // prevent multiple instances of the media screens running at the same time. 
+    // we want one single instance that will orchestrate the multiple windows
+    const lockState = app.requestSingleInstanceLock();
+    if (!lockState) {
+        app.quit();
+    } else if (allWindows.length <= 0) {
+        // On macOS it's common to re-create a window in the app when the
+        // dock icon is clicked and there are no other windows open.
+        createWindows();
+    }
+}
   

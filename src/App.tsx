@@ -5,7 +5,7 @@ import { MetaStore } from "./stores/meta";
 import StoreSelect from "./Components/StoreSelect";
 import MediaRenderer from "./Components/MediaRenderer";
 import { isWithinInterval, parse } from "date-fns";
-import * as df from "date-fns";
+// import * as df from "date-fns";
 // const { app } = require("@electron/remote/main");
 
 const OPENING_HOURS = "8:00 am";

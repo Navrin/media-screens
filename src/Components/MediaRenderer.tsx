@@ -325,14 +325,6 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
         if (media == null) {
             return;
         }
-        // if (this.state.enqeueVideo && this.vref) {
-        //     console.log("checking video state");
-        //     if (this.vref.readyState === 4) {
-        //         this.setState({
-        //             currentMedia: this.state.enqeueVideo,
-        //         });
-        //     }
-        // }
 
         if (media.endsWith("mp4")) {
             if (this.dontPickVideo || shouldLeave) {
@@ -359,9 +351,6 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
                 return;
             }
 
-            // this.lastMedia = this.currentMedia;
-            // this.currentMedia = this.currentMedia;
-
             fetch(media, { cache: "force-cache" })
                 .then((r) => r.blob())
                 .then((b) => {
@@ -370,27 +359,7 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
                     }
                     const url = URL.createObjectURL(b);
 
-                    // const videoFrameTarget = document.createElement("video");
-                    // videoFrameTarget.preload = "auto";
-                    // videoFrameTarget.src = url + "#t=0.1";
-                    // videoFrameTarget.autoplay = true;
-                    // videoFrameTarget.style.visibility = "hidden";
-
-                    // const shadowedComponent = document.body.appendChild(
-                    //     videoFrameTarget,
-                    // );
-
-                    // videoFrameTarget.addEventListener(
-                    //     "loadeddata",
-                    //     async () => {
                     runInAction(async () => {
-                        // const blob = await grabCurrentVideoFrame(
-                        //     shadowedComponent,
-                        // );
-
-                        // // this.overlaySrc = URL.createObjectURL(blob);
-                        // videoFrameTarget.remove();
-
                         this.currentMedia = "";
                         this.isLeaving = false;
                         this.downloading = false;
@@ -416,8 +385,6 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
         }
         this.downloadingImg = true;
 
-        // this.lastMedia = ;
-
         fetch(media, { cache: "force-cache" })
             .then((r) => r.blob())
             .then((b) => {
@@ -425,88 +392,14 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
                 this.videoUrl = null;
                 runInAction(() => {
                     this.downloadingImg = false;
-                    // this.lastMedia = this.currentMedia;
 
                     URL.revokeObjectURL(this.currentMedia);
                     this.currentMedia = URL.createObjectURL(b);
-
-                    // if (this.videoUrl) {
-                    //     this.isLeaving = true;
-                    // }
-
-                    // if (shouldLeave && !this.isLeaving) {
-                    //     this.isLeaving = true;
-                    // }
                 });
             });
 
         this.dontPickVideo = false;
     };
-
-    // renderMedia = () => {
-    //     if (this.currentMedia == null) return <p>Finding media...</p>;
-
-    //     if (this.videoUrl) {
-    //         return null;
-    //     }
-
-    //     if (this.downloadingImg && this.lastMedia) {
-    //         return <CurrentImage key={this.lastMedia} src={this.lastMedia!} />;
-    //     }
-
-    //     if (this.downloadingImg && this.currentMedia) {
-    //         return (
-    //             <CurrentImage
-    //                 key={this.currentMedia}
-    //                 src={this.currentMedia!}
-    //             />
-    //         );
-    //     }
-
-    //     if (this.currentMedia)
-    //         return (
-    //             <CurrentImage
-    //                 key={this.currentMedia}
-    //                 // loader={
-    //                 //     <GhostMedia
-    //                 //         key={this.lastMedia!}
-    //                 //         src={this.lastMedia!}
-    //                 //         onShouldBeRemoved={() => {
-    //                 //             this.lastMedia = null;
-    //                 //         }}
-    //                 //     />
-    //                 // }
-    //                 src={this.currentMedia}
-    //             />
-    //         );
-
-    //     return <CurrentImage src={this.lastMedia} key={this.lastMedia || ""} />;
-    // };
-
-    // pollVideoUntilVanish = () => {
-    //     const main = document.getElementById("main-video");
-
-    //     const sister = document.getElementById("main-image");
-    //     const sisterOpacity = sister
-    //         ? window.getComputedStyle(sister).opacity
-    //         : "0";
-
-    //     const mainOpacity = main ? window.getComputedStyle(main).opacity : "0";
-    //     console.log("main", mainOpacity, "sister", sisterOpacity);
-
-    //     if (mainOpacity === "0" || sisterOpacity === "1") {
-    //         runInAction(() => {
-    //             this.overlaySrc && URL.revokeObjectURL(this.overlaySrc);
-    //             this.overlaySrc = null;
-
-    //             this.isLeaving = false;
-    //             this.internalVideoRef = null;
-    //         });
-    //         return;
-    //     }
-
-    //     return window.requestAnimationFrame(this.pollVideoUntilVanish);
-    // };
 
     @computed
     get currentKey() {
@@ -523,24 +416,9 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
                         timeout={{ enter: 2000, exit: 4000 }}
                         key={this.currentKey}
                     >
-                        {/* {this.lastMedia && (
-                    <GhostMedia
-                        key={this.lastMedia}
-                        src={this.lastMedia}
-                        onShouldBeRemoved={() => {
-                            this.lastMedia = null;
-                        }}
-                    />
-                )} */}
-
                         {this.videoUrl ? (
                             <VideoRenderer
-                                didUnmount={() => {
-                                    // console.log("did unmount");
-                                    // window.requestAnimationFrame(
-                                    //     this.pollVideoUntilVanish,
-                                    // );
-                                }}
+                                didUnmount={() => {}}
                                 ref={(ref) => (this.internalVideoRef = ref)}
                                 key={this.videoUrl}
                                 preload="auto"
@@ -552,8 +430,6 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
                                 overlaySrc={this.overlaySrc!}
                                 id="main-video"
                                 onEnded={(e) => {
-                                    // console.log("video finished");
-
                                     this.videoCompleted();
                                 }}
                             >
@@ -582,11 +458,6 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
     videoCompleted = async () => {
         runInAction(() => {
             this.vidCallback && clearInterval(this.vidCallback);
-
-            // this.overlaySrc && URL.revokeObjectURL(this.overlaySrc);
-
-            // const blob = await grabCurrentVideoFrame(this.vref!);
-            // this.overlaySrc = URL.createObjectURL(blob);
 
             this.internalVideoRef = null;
             this.dontPickVideo = true;
