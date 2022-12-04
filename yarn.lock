@@ -5114,6 +5114,11 @@ ejs@^3.1.6:
   dependencies:
     jake "^10.8.5"
 
+electron-browser-storage@^1.0.7:
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/electron-browser-storage/-/electron-browser-storage-1.0.7.tgz#508b56c5465249f1bea88f4c87bf8dd2bb270c7a"
+  integrity sha512-/5aNIqo0Y1TS3UWs9EVLfiaY3Dio1xaFn5FRAQFDfjE92ObhClrgxWN3MtO9MDMriCkqcY+hO5F1m7sfK5D5fQ==
+
 electron-builder@^22.13.1:
   version "22.14.13"
   resolved "https://registry.yarnpkg.com/electron-builder/-/electron-builder-22.14.13.tgz#fd40564685cf5422a8f8d667940af3d3776f4fb8"

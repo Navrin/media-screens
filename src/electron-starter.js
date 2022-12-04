@@ -1,40 +1,88 @@
 const electron = require("electron");
-const { app, BrowserWindow, ipcMain, screen } = electron;
+const { app, BrowserWindow, ipcMain, screen, Menu, MenuItem, session } =
+    electron;
 // const { BrowserWindow } = require("@electron/remote");
 const { autoUpdater } = require("electron-updater");
 const url = require("url");
 const path = require("path");
 var AutoLaunch = require("auto-launch");
 const isDev = require("electron-is-dev");
+const { localStorage } = require("electron-browser-storage");
+const { promises: pfs } = require("fs");
 
 // require("@electron/remote/main").initialize();
 const autoLauncher = new AutoLaunch({
     name: "MediaScreen",
 });
 
+// Keep a global reference of the window object, if you don't, the window will
+// be closed automatically when the JavaScript object is garbage collected.
+let allWindows = [];
 
 if (!isDev) {
     autoLauncher.enable();
 
     autoLauncher
         .isEnabled()
-        .then(function(isEnabled) {
+        .then(function (isEnabled) {
             if (isEnabled) {
                 return;
             }
             autoLauncher.enable();
         })
-        .catch(function(err) {
+        .catch(function (err) {
             // handle error
             console.error(err);
         });
 }
 
+// add a small menu for debug purposes
+const menu = Menu();
+menu.append(
+    new MenuItem({
+        label: "Util",
+        submenu: [
+            {
+                label: "Reset cache",
+                accelerator: "CommandOrControl+G",
+                click: async (ev, fWindow, fWebContents) => {
+                    session.defaultSession.clearStorageData();
+                    session.defaultSession.clearCache();
+                    fWindow.console.debug("Clearing cache");
+                    await localStorage.clear();
+                },
+            },
+            {
+                label: "Delete image cache",
+                accelerator: "CommandOrControl+Shift+G",
+                click: async () => {
+                    const write = await this.getWritePath();
+                    const cachedFiles = await pfs.readdir(write);
+                    await pfs.rm(cachedFiles);
+                },
+            },
+            {
+                role: "toggleDevTools",
+                accelerator: "CommandOrControl+Shift+C",
+                // click: () => {allWindows[0].webContents.openDevTools()},
+            },
+            {
+                label: "Check for updates",
+                click: () => {
+                    autoUpdater.checkForUpdatesAndNotify();
+                },
+            },
+        ],
+    }),
+);
 
+menu.append(
+    new MenuItem({
+        role: "appMenu",
+    }),
+);
 
-// Keep a global reference of the window object, if you don't, the window will
-// be closed automatically when the JavaScript object is garbage collected.
-let allWindows = [];
+Menu.setApplicationMenu(menu);
 
 function createWindows() {
     if (isDev) {
@@ -47,7 +95,6 @@ function createWindows() {
             .catch(console.error);
     }
 
-    
     autoUpdater.checkForUpdatesAndNotify();
     setInterval(() => {
         autoUpdater.checkForUpdatesAndNotify();
@@ -58,7 +105,7 @@ function createWindows() {
 
     // Create the browser window.
     allWindows = displays.map(
-        d =>
+        (d) =>
             new BrowserWindow({
                 width: d.size.width,
                 height: d.size.height,
@@ -73,7 +120,7 @@ function createWindows() {
                 },
             }),
     );
-    allWindows.forEach(e => e.webContents.setFrameRate(60));
+    allWindows.forEach((e) => e.webContents.setFrameRate(60));
 
     const startUrl =
         process.env.ELECTRON_START_URL ||
@@ -83,18 +130,20 @@ function createWindows() {
             slashes: true,
         });
 
-    allWindows.forEach(r => {
+    allWindows.forEach((r) => {
         // require("@electron/remote/main").enable(r.webContents)
         r.loadURL(startUrl);
         r.on("ready-to-show", () => {
             r.maximize();
             r.show();
-        })
-        r.on("closed", function() {
+        });
+        r.on("closed", function () {
             // Dereference the window object, usually you would store windows
             // in an array if your app supports multi windows, this is the time
             // when you should delete the corresponding element.
-            let idx = allWindows.filter(x => x).findIndex(j => j.isDestroyed());
+            let idx = allWindows
+                .filter((x) => x)
+                .findIndex((j) => j.isDestroyed());
             if (idx === -1) {
                 return;
             }
@@ -120,14 +169,13 @@ function createWindows() {
     // Emitted when the window is closed.
 }
 
-ipcMain.handle('get-appdata', async () => {
-    return app.getPath('appData')
-})
+ipcMain.handle("get-appdata", async () => {
+    return app.getPath("appData");
+});
 
-ipcMain.handle('get-screen-id', (event, bounds) => {
+ipcMain.handle("get-screen-id", (event, bounds) => {
     return screen.getDisplayNearestPoint(bounds).id;
-})
-
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -135,7 +183,7 @@ ipcMain.handle('get-screen-id', (event, bounds) => {
 app.on("ready", bootstrapWindowCreation);
 
 // Quit when all windows are closed.
-app.on("window-all-closed", function() {
+app.on("window-all-closed", function () {
     // On macOS it is common for applications and their menu bar
     // to stay active until the user quits explicitly with Cmd + Q
     if (process.platform !== "darwin") {
@@ -152,12 +200,12 @@ app.on("activate", bootstrapWindowCreation);
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
 
-process.on('uncaughtException', function (err) {
+process.on("uncaughtException", function (err) {
     console.log(err);
 });
 
 function bootstrapWindowCreation() {
-    // prevent multiple instances of the media screens running at the same time. 
+    // prevent multiple instances of the media screens running at the same time.
     // we want one single instance that will orchestrate the multiple windows
     const lockState = app.requestSingleInstanceLock();
     if (!lockState) {
@@ -168,4 +216,3 @@ function bootstrapWindowCreation() {
         createWindows();
     }
 }
-  

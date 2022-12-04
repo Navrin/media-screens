@@ -5,6 +5,7 @@ import { MetaStore } from "./stores/meta";
 import StoreSelect from "./Components/StoreSelect";
 import MediaRenderer from "./Components/MediaRenderer";
 import { isWithinInterval, parse } from "date-fns";
+import MetaStatusIndicator from "./Components/MetaStatusIndicator";
 // import * as df from "date-fns";
 // const { app } = require("@electron/remote/main");
 
@@ -55,6 +56,10 @@ const App = (props: { metaStore?: MetaStore }) => {
         localStorage.setItem("lastRestart", new Date().toISOString());
     }
 
+    // dev emitting store for debug inspection
+    // FIXME: remove before publish
+    console.debug(props.metaStore);
+
     useInterval(() => {
         // const lastRestart = new Date(
         //     localStorage.getItem("lastRestart") || new Date(),
@@ -97,6 +102,7 @@ const App = (props: { metaStore?: MetaStore }) => {
             ) : (
                 <MediaRenderer />
             )}
+            <MetaStatusIndicator metaStore={props.metaStore!} />
         </Base>
     );
 };

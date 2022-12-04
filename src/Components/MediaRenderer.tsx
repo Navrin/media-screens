@@ -1,21 +1,13 @@
 import React from "react";
 import { inject, observer } from "mobx-react";
 import { MetaStore } from "../stores/meta";
-import styled, { keyframes, css } from "styled-components";
-import {
-    when,
-    observable,
-    action,
-    transaction,
-    runInAction,
-    computed,
-    makeObservable,
-} from "mobx";
+import styled, { keyframes } from "styled-components";
+import { when, observable, runInAction, computed, makeObservable } from "mobx";
 // const ReactCSSTransitionReplace = require("react-css-transition-replace")
 //     .default;
 import { CSSTransition, SwitchTransition } from "react-transition-group";
-import electronIsDev from "electron-is-dev";
-const Img = require("react-image");
+// import electronIsDev from "electron-is-dev";
+// const Img = require("react-image");
 
 type MediaRendererProps = {
     metaStore?: MetaStore;
@@ -77,7 +69,8 @@ const VideoAbsoluteContainer = styled.div`
     display: flex;
     width: 100vw;
     height: 100vh;
-    z-index: 100000;
+    // z-index at 100 000 is probably overkill...
+    z-index: 10;
 `;
 
 const VideoPreloadOverlay = styled(CurrentImage)<{ visible: boolean }>`
@@ -295,7 +288,7 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
         setInterval(this.workLoop, 20000);
     }
 
-    workLoop = (shouldLeave: boolean = false): void => {
+    workLoop = async (shouldLeave: boolean = false): Promise<void> => {
         if (this.skipNextLoop) {
             this.skipNextLoop = false;
             return;
@@ -326,79 +319,91 @@ class MediaRenderer extends React.Component<MediaRendererProps, {}> {
             return;
         }
 
-        if (media.endsWith("mp4")) {
-            if (this.dontPickVideo || shouldLeave) {
-                return this.workLoop();
-            }
+        try {
+            if (media.endsWith("mp4")) {
+                if (this.dontPickVideo || shouldLeave) {
+                    return this.workLoop();
+                }
 
-            if (this.internalVideoRef != null) {
-                // there's still a video mounted;
-                return;
-            }
-
-            // console.log("queuing video");
-            // handle video loading
-
-            this.downloading = true;
-
-            if (this.props.metaStore!.serverDown || !navigator.onLine) {
-                if (this.isLeaving) {
+                if (this.internalVideoRef != null) {
+                    // there's still a video mounted;
                     return;
                 }
-                this.videoUrl && URL.revokeObjectURL(this.videoUrl);
-                this.videoUrl = media;
-                this.downloading = false;
-                return;
-            }
 
-            fetch(media, { cache: "force-cache" })
-                .then((r) => r.blob())
-                .then((b) => {
+                // console.log("queuing video");
+                // handle video loading
+
+                this.downloading = true;
+
+                if (this.props.metaStore!.serverDown || !navigator.onLine) {
                     if (this.isLeaving) {
                         return;
                     }
-                    const url = URL.createObjectURL(b);
+                    this.videoUrl && URL.revokeObjectURL(this.videoUrl);
+                    this.videoUrl = media;
+                    this.downloading = false;
+                    return;
+                }
 
-                    runInAction(async () => {
-                        this.currentMedia = "";
-                        this.isLeaving = false;
-                        this.downloading = false;
+                await fetch(media, { cache: "force-cache" })
+                    .then((r) => r.blob())
+                    .then((b) => {
+                        if (this.isLeaving) {
+                            return;
+                        }
+                        const url = URL.createObjectURL(b);
 
-                        this.videoUrl && URL.revokeObjectURL(this.videoUrl);
-                        this.videoUrl = url;
+                        runInAction(async () => {
+                            this.currentMedia = "";
+                            this.isLeaving = false;
+                            this.downloading = false;
+
+                            this.videoUrl && URL.revokeObjectURL(this.videoUrl);
+                            this.videoUrl = url;
+                        });
+                    });
+
+                return;
+            }
+
+            if (
+                media === this.currentMedia &&
+                this.props.metaStore!.rotation.length > 1
+            ) {
+                // console.log("repeat media choice");
+                return this.workLoop();
+            }
+
+            if (shouldLeave) {
+                this.skipNextLoop = true;
+            }
+            this.downloadingImg = true;
+
+            await fetch(media, { cache: "force-cache" })
+                .then((r) => r.blob())
+                .then((b) => {
+                    this.videoUrl && URL.revokeObjectURL(this.videoUrl!);
+                    this.videoUrl = null;
+                    runInAction(() => {
+                        this.downloadingImg = false;
+
+                        URL.revokeObjectURL(this.currentMedia);
+                        this.currentMedia = URL.createObjectURL(b);
                     });
                 });
 
-            return;
+            this.dontPickVideo = false;
+        } catch (e) {
+            if (e instanceof Error && e.message.includes("Failed to fetch")) {
+                // server went down mid-request, bad times.
+                // catch and force offline mode
+                this.props.metaStore!.serverDown = true;
+                await this.props.metaStore!.bootStrap();
+                this.downloadingImg = false;
+                this.workLoop();
+                return;
+            }
         }
-
-        if (
-            media === this.currentMedia &&
-            this.props.metaStore!.rotation.length > 1
-        ) {
-            // console.log("repeat media choice");
-            return this.workLoop();
-        }
-
-        if (shouldLeave) {
-            this.skipNextLoop = true;
-        }
-        this.downloadingImg = true;
-
-        fetch(media, { cache: "force-cache" })
-            .then((r) => r.blob())
-            .then((b) => {
-                this.videoUrl && URL.revokeObjectURL(this.videoUrl!);
-                this.videoUrl = null;
-                runInAction(() => {
-                    this.downloadingImg = false;
-
-                    URL.revokeObjectURL(this.currentMedia);
-                    this.currentMedia = URL.createObjectURL(b);
-                });
-            });
-
-        this.dontPickVideo = false;
     };
 
     @computed

@@ -16,6 +16,7 @@
         "@types/styled-components": "^5.1.15",
         "auto-launch": "^5.0.5",
         "date-fns": "^2.0.0-beta.5",
+        "electron-browser-storage": "^1.0.7",
         "electron-is-dev": "^2.0.0",
         "electron-updater": "^4.1.2",
         "lodash": "^4.17.15",

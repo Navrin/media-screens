@@ -1,7 +1,7 @@
 import { API_URL } from "../client";
-import { makeObservable, observable } from "mobx";
+import { makeObservable, observable, runInAction } from "mobx";
 import * as df from "date-fns";
-import { promises as pfs, readSync, readFileSync } from "fs";
+import { promises as pfs } from "fs";
 import { join } from "path";
 import shuffle from "lodash/shuffle";
 import { ipcRenderer } from "electron";
@@ -29,7 +29,10 @@ export class MetaStore {
     @observable
     selectedStore: string | null = localStorage.getItem(MetaStore.screenId);
 
+    @observable
     serverDown = false;
+
+    reattemptConnection = false;
 
     @observable
     rotation: string[] = [];
@@ -79,6 +82,21 @@ export class MetaStore {
     }
 
     bootStrap = async (): Promise<void> => {
+        if (this.reattemptConnection) {
+            try {
+                await fetch(`${API_URL}/manifest`);
+                this.reattemptConnection = false;
+                this.serverDown = false;
+            } catch (e) {
+                if (
+                    e instanceof Error &&
+                    e.message.includes("Failed to fetch")
+                ) {
+                    this.serverDown = true;
+                }
+            }
+        }
+
         if (navigator.onLine && !this.serverDown) {
             try {
                 const manifest = await fetch(`${API_URL}/manifest`).then((r) =>
@@ -99,15 +117,16 @@ export class MetaStore {
                     this.bootStrap();
                 }, 100000);
             } catch (e) {
+                console.error(e);
                 if (
                     e instanceof Error &&
                     e.message.includes("Failed to fetch")
                 ) {
-                    this.serverDown = true;
+                    runInAction(() => {
+                        this.serverDown = true;
+                    });
                     return this.bootStrap();
                 }
-
-                console.error(e);
 
                 setTimeout(() => {
                     this.bootStrap();
@@ -122,11 +141,13 @@ export class MetaStore {
             );
 
             const allowedImages = this.manifest!.files.flatMap((m) =>
-                m.stores.includes(this.selectedStore || "") ||
+                m.stores.includes(this.selectedStore || "All stores") ||
                 m.stores.length <= 0
                     ? [m.file]
                     : [],
             );
+
+            console.debug(allowedImages);
 
             // find cached files that are in allowedImages set
             // cached images ∩ allowed images
@@ -148,73 +169,86 @@ export class MetaStore {
             this.intervalHandler && clearInterval(this.intervalHandler);
             // retry internet connection
             // reset server status so it doesn't get permastuck in offline mode
-            this.serverDown = false;
+            this.reattemptConnection = true;
             setTimeout(this.bootStrap, 20000);
         }
     };
 
     workLoop = async () => {
-        // console.count("performing workloop");
-        if (this.manifest == null) {
-            return;
-        }
+        try {
+            // console.count("performing workloop");
+            if (this.manifest == null) {
+                return;
+            }
 
-        for (const file of this.manifest.files) {
-            // check if file is store limited
-            if (file.stores.length > 0) {
-                // if file is store limited and this store is not included skip file
-                if (!file.stores.includes(this.selectedStore || "")) {
+            for (const file of this.manifest.files) {
+                // check if file is store limited
+                if (file.stores.length > 0) {
+                    // if file is store limited and this store is not included skip file
+                    if (
+                        !file.stores.includes(
+                            this.selectedStore || "All stores",
+                        )
+                    ) {
+                        continue;
+                    }
+                }
+
+                // check if file is time limited
+                if (file.times.length > 0) {
+                    if (!processTimeIsValid(file.times)) {
+                        continue;
+                    }
+                }
+
+                const fileUrl = `${API_URL}/media/${file.file}`;
+                // file should be valid, check if already in rotation
+                const exists = this.rotation.includes(fileUrl);
+
+                if (exists) {
                     continue;
                 }
-            }
 
-            // check if file is time limited
-            if (file.times.length > 0) {
-                if (!processTimeIsValid(file.times)) {
+                // file needs to be added to rotation
+
+                this.rotation = shuffle([...this.rotation, fileUrl]);
+
+                // if (!file.file.endsWith("mp4")) {
+                //     const img = new Image();
+                //     img.src = fileUrl;
+                // } else {
+                fetch(fileUrl, { cache: "force-cache" });
+                // }
+
+                // cache file if general rotation so it can work offline
+                const writePath = await this.getWritePath();
+                await pfs.mkdir(writePath, { recursive: true });
+                const files = await pfs.readdir(writePath);
+
+                // dont cache already added images
+                if (files.includes(file.file)) {
                     continue;
                 }
+
+                const blob = await fetch(fileUrl).then((r) => r.blob());
+
+                let reader = new FileReader();
+                reader.onload = function () {
+                    if (reader.readyState === 2) {
+                        var buffer = new Buffer(reader.result as ArrayBuffer);
+                        pfs.writeFile(`${writePath}/${file.file}`, buffer);
+                    }
+                };
+
+                reader.readAsArrayBuffer(blob);
             }
-
-            const fileUrl = `${API_URL}/media/${file.file}`;
-            // file should be valid, check if already in rotation
-            const exists = this.rotation.includes(fileUrl);
-
-            if (exists) {
-                continue;
+        } catch (e) {
+            if (e instanceof Error && e.message.includes("Failed to fetch")) {
+                // probably went offline mid attempt, set offline and reattempt workloop
+                this.bootStrap();
+            } else {
+                console.error(e);
             }
-
-            // file needs to be added to rotation
-
-            this.rotation = shuffle([...this.rotation, fileUrl]);
-
-            // if (!file.file.endsWith("mp4")) {
-            //     const img = new Image();
-            //     img.src = fileUrl;
-            // } else {
-            fetch(fileUrl, { cache: "force-cache" });
-            // }
-
-            // cache file if general rotation so it can work offline
-            const writePath = await this.getWritePath();
-            await pfs.mkdir(writePath, { recursive: true });
-            const files = await pfs.readdir(writePath);
-
-            // dont cache already added images
-            if (files.includes(file.file)) {
-                continue;
-            }
-
-            const blob = await fetch(fileUrl).then((r) => r.blob());
-
-            let reader = new FileReader();
-            reader.onload = function () {
-                if (reader.readyState === 2) {
-                    var buffer = new Buffer(reader.result as ArrayBuffer);
-                    pfs.writeFile(`${writePath}/${file.file}`, buffer);
-                }
-            };
-
-            reader.readAsArrayBuffer(blob);
         }
     };
 }
