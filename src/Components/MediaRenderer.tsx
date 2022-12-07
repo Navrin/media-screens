@@ -33,7 +33,7 @@ const CurrentImage = styled.img`
     display: flex;
     justify-content: center;
     align-items: center;
-    object-fit: cover;
+    object-fit: scale-down;
     width: 100vw;
     height: 100vh;
     position: absolute;
